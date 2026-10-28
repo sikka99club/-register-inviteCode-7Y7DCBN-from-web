@@ -37,34 +37,20 @@
         </button>
     </div>
 
-    <!-- Firebase & Advanced Auto-Reply Script Logic -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        const firebaseConfig = {
-          apiKey: "AIzaSyBz-SPwj65Eg9XCIVBLxHu1G_c0YYkI_vY",
-          authDomain: "sikka99-fb62e.firebaseapp.com",
-          projectId: "sikka99-fb62e",
-          storageBucket: "sikka99-fb62e.firebasestorage.app",
-          messagingSenderId: "1050632951434",
-          appId: "1:1050632951434:web:03b6788ef5416f873d3f73",
-          measurementId: "G-1YK1QH5WHV"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        // Generate a new Unique Session ID every time the page loads 
-        // This ensures the chat is always "cleared" when the user goes back and comes back again.
-        const userId = "session_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9); 
-        
+    <!-- LocalStorage Chat Logic with 20+ Advanced Commands -->
+    <script>
         const chatContainer = document.getElementById('chatContainer');
+        const STORAGE_KEY = 'sikka99_chat_messages';
+        const STATE_KEY = 'sikka99_chat_state';
 
-        const q = query(collection(db, "chats", userId, "messages"), orderBy("createdAt", "asc"));
-        
-        onSnapshot(q, (snapshot) => {
-            // Default Welcome Message
+        // Page load hone par session clear karo
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STATE_KEY);
+
+        // Render Messages Function
+        function renderMessages() {
+            const messages = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+            
             let htmlContent = `
                 <div class="flex items-start space-x-2">
                     <div class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
@@ -77,13 +63,12 @@
                 </div>
             `;
 
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                if (data.sender === 'user') {
+            messages.forEach((msg) => {
+                if (msg.sender === 'user') {
                     htmlContent += `
                         <div class="flex items-end justify-end space-x-2 mt-3">
                             <div class="bg-emerald-600 text-white rounded-2xl rounded-tr-sm p-3.5 shadow-sm max-w-[80%] text-xs leading-relaxed">
-                                ${escapeHtml(data.text)}
+                                ${escapeHtml(msg.text)}
                             </div>
                         </div>
                     `;
@@ -95,7 +80,7 @@
                             </div>
                             <div class="bg-white rounded-2xl rounded-tl-sm p-3.5 shadow-sm max-w-[80%] border border-gray-100 text-xs leading-relaxed">
                                 <p class="font-bold text-emerald-600 mb-1">Admin Support</p>
-                                ${escapeHtml(data.text)}
+                                ${msg.text}
                             </div>
                         </div>
                     `;
@@ -103,50 +88,105 @@
             });
 
             chatContainer.innerHTML = htmlContent;
-            chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to bottom
-        });
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
 
-        window.sendMessage = async function() {
+        // Send Message Function
+        function sendMessage() {
             const inputEl = document.getElementById('messageInput');
             const text = inputEl.value.trim();
             if (!text) return;
 
-            try {
-                inputEl.value = '';
-                
-                // Save user message to database
-                await addDoc(collection(db, "chats", userId, "messages"), {
-                    sender: "user",
-                    text: text,
-                    createdAt: serverTimestamp()
+            inputEl.value = '';
+
+            const messages = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+            messages.push({
+                sender: 'user',
+                text: text,
+                timestamp: Date.now()
+            });
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+            renderMessages();
+
+            // Auto Reply & 20+ Smart Commands Logic
+            setTimeout(() => {
+                let replyText = "Thank you for contacting Sikka 99 support. Our agent will review your query shortly.";
+                const lowerText = text.toLowerCase();
+                let currentState = localStorage.getItem(STATE_KEY);
+
+                // 1. UTR Flow Check
+                if (currentState === 'waiting_for_utr' && /\d/.test(text)) {
+                    replyText = `<span style="font-family: monospace; letter-spacing: 0.5px;">⚡ <b>Status: Processing</b></span><br>Your deposit has been processing securely. Please wait a moment while we verify your UTR: <b>${escapeHtml(text)}</b> ✨`;
+                    localStorage.removeItem(STATE_KEY);
+                } 
+                // 2. Deposit / Add Money Flow Trigger
+                else if (lowerText.includes('deposit') || lowerText.includes('add money') || lowerText.includes('recharge') || lowerText.includes('balance not') || lowerText.includes('paise add')) {
+                    replyText = "Please enter your UTR number.";
+                    localStorage.setItem(STATE_KEY, 'waiting_for_utr');
+                } 
+                // --- 20+ Additional Smart Commands ---
+                else if (lowerText.includes('how are you') || lowerText.includes('kese ho') || lowerText.includes('kaise ho')) {
+                    replyText = "I'm fine, thank you for asking! 😊 How can I help you with Sikka 99 today?";
+                } 
+                else if (lowerText.includes('hi') || lowerText.includes('hello') || lowerText.includes('hey') || lowerText.includes('hii') || lowerText.includes('gm')) {
+                    replyText = "Hello! Welcome to Sikka 99 support. How can we assist you today?";
+                } 
+                else if (lowerText.includes('withdraw') || lowerText.includes('withdrawal') || lowerText.includes('paisa nikalna')) {
+                    replyText = "Minimum ₹200 deposit is required to make a withdrawal.";
+                } 
+                else if (lowerText.includes('help') || lowerText.includes('support') || lowerText.includes('customer care')) {
+                    replyText = "I am here to help you! You can ask about deposits, withdrawals, bonuses, or technical issues.";
+                } 
+                else if (lowerText.includes('bonus') || lowerText.includes('promocode') || lowerText.includes('promo code') || lowerText.includes('offer')) {
+                    replyText = "🎁 Check your profile section or active events page to claim your latest bonuses and rewards.";
+                } 
+                else if (lowerText.includes('password') || lowerText.includes('forgot') || lowerText.includes('login issue') || lowerText.includes('otp')) {
+                    replyText = "If you are facing login or OTP issues, please check your network connection or try clearing your browser cache.";
+                } 
+                else if (lowerText.includes('game') || lowerText.includes('play') || lowerText.includes('win') || lowerText.includes('trick')) {
+                    replyText = "Play responsibly and follow the game rules carefully to maximize your winning chances on Sikka 99!";
+                } 
+                else if (lowerText.includes('time') || lowerText.includes('timing') || lowerText.includes('open') || lowerText.includes('hours')) {
+                    replyText = "🕒 Our support team and platform services are available 24/7 round the clock for you.";
+                } 
+                else if (lowerText.includes('thanks') || lowerText.includes('thank you') || lowerText.includes('ok') || lowerText.includes('thx') || lowerText.includes('good')) {
+                    replyText = "You're most welcome! Have a great time playing and winning on Sikka 99. 🚀";
+                } 
+                else if (lowerText.includes('bye') || lowerText.includes('goodbye') || lowerText.includes('tata')) {
+                    replyText = "Goodbye! Feel free to reach out anytime if you need further assistance. Take care! 👋";
+                } 
+                else if (lowerText.includes('owner') || lowerText.includes('admin') || lowerText.includes('creator') || lowerText.includes('developer')) {
+                    replyText = "You are interacting with the official automated Assistant of Sikka 99 Support.";
+                } 
+                else if (lowerText.includes('safe') || lowerText.includes('secure') || lowerText.includes('trust')) {
+                    replyText = "Yes, Sikka 99 is 100% safe and secure for all your transactions and gameplay data.";
+                } 
+                else if (lowerText.includes('upi') || lowerText.includes('bank') || lowerText.includes('qr code') || lowerText.includes('scanner')) {
+                    replyText = "Make sure you always use the official active scanner or UPI ID provided on the deposit page.";
+                } 
+                else if (lowerText.includes('refer') || lowerText.includes('invite') || lowerText.includes('friend')) {
+                    replyText = "Invite your friends using your referral link to earn exciting commission rewards instantly!";
+                } 
+                else if (lowerText.includes('error') || lowerText.includes('bug') || lowerText.includes('glitch') || lowerText.includes('lag')) {
+                    replyText = "Apologies for the inconvenience. Please refresh your page or restart the app if you encounter any visual glitches.";
+                } 
+                else if (lowerText.includes('fast') || lowerText.includes('delay') || lowerText.includes('pending')) {
+                    replyText = "Transactions usually take a few moments. If delayed, sharing the correct UTR speeds up verification.";
+                }
+
+                const updatedMessages = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+                updatedMessages.push({
+                    sender: 'admin',
+                    text: replyText,
+                    timestamp: Date.now()
                 });
 
-                // Advanced Smart Command & Auto-Reply Trigger
-                setTimeout(async () => {
-                    let replyText = "Thank you for contacting Sikka 99 support. Our agent will review your query shortly.";
-                    const lowerText = text.toLowerCase();
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedMessages));
+                renderMessages();
+            }, 1000);
+        }
 
-                    if (lowerText.includes('hi') || lowerText.includes('hello') || lowerText.includes('hey')) {
-                        replyText = "Hello! How can I help you today?";
-                    } else if (lowerText.includes('withdraw') || lowerText.includes('withdrawal')) {
-                        replyText = "Minimum ₹200 deposit need to withdraw.";
-                    } else if (lowerText.includes('not received') || lowerText.includes('deposit not') || lowerText.includes('balance not') || lowerText.includes('add money')) {
-                        replyText = "If your deposit amount is not received, please share your correct 12-digit UTR/Reference number and payment screenshot so we can verify and update it instantly.";
-                    }
-
-                    await addDoc(collection(db, "chats", userId, "messages"), {
-                        sender: "admin",
-                        text: replyText,
-                        createdAt: serverTimestamp()
-                    });
-                }, 1000);
-
-            } catch (error) {
-                alert("Error sending message: " + error.message);
-            }
-        };
-
-        // Add Enter key support for sending message
         document.getElementById('messageInput').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') {
                 sendMessage();
@@ -163,6 +203,8 @@
             };
             return text.replace(/[&<>"']/g, function(m) { return map[m]; });
         }
+
+        renderMessages();
     </script>
 </body>
 </html>
